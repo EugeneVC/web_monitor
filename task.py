@@ -1,18 +1,28 @@
 from abc import ABC, abstractmethod
 import asyncio
+import requests
+from enums import CheckStatusEnum
 
 
 class Task(ABC):
     """ Базовый абстрактный класс, представляющий задачу по мониторингу сайта"""
 
-    def __init__(self, name, uri, *args, **kwargs):
+    def __init__(
+            self, name, uri, search_content, check_period_ms, timeout_ms,
+            *args, **kwargs):
         """
             Инициализация класса
             :param name - имя задачи
             :param uri - URI задачи
+            :param search_content - паттерн для поиска в контенте ответа
+            :param check_period_ms - период проверки в миллисекундах
+            :param timeout_ms - таймаут сетевых операций в миллисекундах
         """
         self.name = name
         self.uri = uri
+        self.search_content = search_content
+        self.check_period_ms = check_period_ms
+        self.timeout_ms = timeout_ms
 
     @classmethod
     @abstractmethod
@@ -30,13 +40,34 @@ class Task(ABC):
             await self.check()
             await self.sleep()
 
-    #@abstractmethod
-    async def check(self):
-        """ Проверка задания задачи"""
-        print(self.name)
+    @abstractmethod
+    async def check(self) -> CheckStatusEnum:
+        """
+            Проверка задания задачи
+
+            :return статус проверки
+        """
+        pass
 
     async def sleep(self):
-        await asyncio.sleep(1)
+        """ Пауза между повторами задачи"""
+        await asyncio.sleep(self.check_period_ms/1000)
+
+    @abstractmethod
+    def _request(self, *args, **kwargs):
+        """
+            Запрос к проверяемому ресурсу
+
+            :return словарь {
+                код ответа,
+                контент
+            }
+        """
+        pass
+
+    @abstractmethod
+    def _check_content(self, content):
+        pass
 
 
 class HttpTask(Task):
@@ -45,12 +76,59 @@ class HttpTask(Task):
     def is_task_for(cls, uri):
         return uri.lower().startswith('http://')
 
+    async def check(self):
+        status, content = self._request()
 
-class HttpsTask(Task):
+        if status == CheckStatusEnum.ok:
+            status = self._check_content(content)
+
+        print(status, self.name)
+        return status
+
+    def _request(self):
+        status_code = CheckStatusEnum.request_failed
+        content = None
+        try:
+            r = requests.get(self.uri, timeout=self.timeout_ms/1000)
+            if r.status_code == 200:
+                status_code = CheckStatusEnum.ok
+                content = r.text
+        except requests.exceptions.Timeout:
+            status_code = CheckStatusEnum.request_timeout
+        except:
+            # TODO request возращает много разных исключений, необходимо
+            #  научиться их обрабатывать
+            pass
+
+        return status_code, content
+
+    def _check_content(self, content):
+        status = CheckStatusEnum.ok
+        if self.search_content:
+            if content:
+                if self.search_content not in content:
+                    status = CheckStatusEnum.content_mismatch
+
+        return status
+
+
+class HttpsTask(HttpTask):
 
     @classmethod
     def is_task_for(cls, uri):
         return uri.lower().startswith('https://')
+
+    async def check(self):
+        status, content = self._request()
+
+        if status == CheckStatusEnum.ok:
+            status = self._check_content(content)
+
+        print(status, self.name)
+        return status
+
+    def _request(self):
+        return super()._request()
 
 
 class TaskFactory():

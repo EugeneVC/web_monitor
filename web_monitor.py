@@ -14,7 +14,6 @@ class WebMonitor():
             :param configure_filename - путь к конфигурационному файлу
         """
         self.configure = Configure(configure_filename)
-        #print(self.configure.sites)
 
         self.task_factory = TaskFactory()
         self.task_factory.register_task_creator(HttpTask)
@@ -26,6 +25,10 @@ class WebMonitor():
 
         #регистрируем все задачи
         for task_param in self.configure.sites.values():
+            task_param.update({
+                'check_period_ms': self.configure.check_period_ms,
+                'timeout_ms': self.configure.timeout_ms,
+            })
             print(task_param)
             task = self.task_factory.create_task(**task_param)
 
@@ -35,7 +38,6 @@ class WebMonitor():
 
 
 if __name__ == '__main__':
-    #main(sys.argv[1:])
     configure_filename = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         'web_monitor.ini'

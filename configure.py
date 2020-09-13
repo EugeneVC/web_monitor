@@ -12,6 +12,7 @@ class Configure:
         self._config.read(configure_filename)
 
         self._sites = self._make_sites()
+        self._check_period_ms, self._timeout_ms = self._default_params()
 
     def _make_sites(self):
         """
@@ -38,6 +39,26 @@ class Configure:
 
         return sites
 
+    def _default_params(self):
+        """
+            Возращает параметры по умолчанию
+
+            :return список [
+                период проверки в миллисекундах,
+                таймаут сетевых операций в миллисекундах,
+                ]
+        """
+
+        defaults = {
+            'check_period_ms': 5000,
+            'timeout_ms': 10000,
+        }
+
+        return [
+            self._config.get('Default', 'check_period_ms', vars=defaults),
+            self._config.get('Default', 'timeout_ms', vars=defaults),
+        ]
+
     @property
     def sites(self):
         """
@@ -46,6 +67,16 @@ class Configure:
             :return словарь сайтов с параметрами
         """
         return self._sites
+
+    @property
+    def check_period_ms(self):
+        """Период проверки в миллисекундах"""
+        return int(self._check_period_ms)
+
+    @property
+    def timeout_ms(self):
+        """Таймаут сетевых операций в миллисекундах"""
+        return int(self._timeout_ms)
 
 
 
