@@ -2,6 +2,9 @@ from abc import ABC, abstractmethod
 import asyncio
 import requests
 from enums import CheckStatusEnum
+import time
+from logger import LoggerRepository, LogRecord
+from datetime import datetime
 
 
 class Task(ABC):
@@ -35,9 +38,22 @@ class Task(ABC):
         """
         pass
 
-    async def start_check(self):
+    async def start_check(self, logger: LoggerRepository):
+        """ Запуск цикла проверок """
         while True:
-            await self.check()
+            start_time = datetime.now()
+            status, execution_time = await self.check()
+            record = LogRecord(
+                name=self.name,
+                start_time=start_time,
+                status=status,
+                execution_time=execution_time,
+            )
+            print(record)
+            lock = asyncio.Lock()
+            async with lock:
+                logger.add_record(record)
+
             await self.sleep()
 
     @abstractmethod
@@ -58,9 +74,10 @@ class Task(ABC):
         """
             Запрос к проверяемому ресурсу
 
-            :return словарь {
+            :return список {
                 код ответа,
                 контент
+                время выполнения запроса
             }
         """
         pass
@@ -77,15 +94,15 @@ class HttpTask(Task):
         return uri.lower().startswith('http://')
 
     async def check(self):
-        status, content = self._request()
+        status, content, execution_time = self._request()
 
         if status == CheckStatusEnum.ok:
             status = self._check_content(content)
 
-        print(status, self.name)
-        return status
+        return status, execution_time
 
     def _request(self):
+        start_time = time.process_time()
         status_code = CheckStatusEnum.request_failed
         content = None
         try:
@@ -100,7 +117,9 @@ class HttpTask(Task):
             #  научиться их обрабатывать
             pass
 
-        return status_code, content
+        execution_time = time.process_time() - start_time
+
+        return status_code, content, execution_time
 
     def _check_content(self, content):
         status = CheckStatusEnum.ok
@@ -119,13 +138,12 @@ class HttpsTask(HttpTask):
         return uri.lower().startswith('https://')
 
     async def check(self):
-        status, content = self._request()
+        status, content, execution_time = self._request()
 
         if status == CheckStatusEnum.ok:
             status = self._check_content(content)
 
-        print(status, self.name)
-        return status
+        return status, execution_time
 
     def _request(self):
         return super()._request()
@@ -145,7 +163,7 @@ class TaskFactory():
             if task.is_task_for(uri):
                 return task(name, uri,  *args, **kwargs)
 
-        return ValueError("Unknown task type")
+        raise ValueError("Unknown task type")
 
 
 

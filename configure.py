@@ -13,6 +13,7 @@ class Configure:
 
         self._sites = self._make_sites()
         self._check_period_ms, self._timeout_ms = self._default_params()
+        self._logger = self._logger_param()
 
     def _make_sites(self):
         """
@@ -59,6 +60,18 @@ class Configure:
             self._config.get('Default', 'timeout_ms', vars=defaults),
         ]
 
+    def _logger_param(self):
+        """
+            Возращает параметры логера
+
+            :return словарь {
+                тип логера
+                параметры логера ....
+            }
+        """
+
+        return dict(self._config['Logger'])
+
     @property
     def sites(self):
         """
@@ -77,6 +90,10 @@ class Configure:
     def timeout_ms(self):
         """Таймаут сетевых операций в миллисекундах"""
         return int(self._timeout_ms)
+
+    @property
+    def logger(self):
+        return self._logger_param()
 
 
 

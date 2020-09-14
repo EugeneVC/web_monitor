@@ -1,8 +1,8 @@
-import sys
 import os
 from configure import Configure
 from task import HttpTask, TaskFactory, HttpsTask
 import asyncio
+from logger import LoggerFactory
 
 
 class WebMonitor():
@@ -19,6 +19,8 @@ class WebMonitor():
         self.task_factory.register_task_creator(HttpTask)
         self.task_factory.register_task_creator(HttpsTask)
 
+        self.logger = LoggerFactory.create_logger(**self.configure.logger)
+
     def run(self):
 
         loop = asyncio.get_event_loop()
@@ -29,10 +31,9 @@ class WebMonitor():
                 'check_period_ms': self.configure.check_period_ms,
                 'timeout_ms': self.configure.timeout_ms,
             })
-            print(task_param)
             task = self.task_factory.create_task(**task_param)
 
-            asyncio.ensure_future(task.start_check())
+            asyncio.ensure_future(task.start_check(self.logger))
 
         loop.run_forever()
 
